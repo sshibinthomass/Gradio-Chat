@@ -137,11 +137,12 @@ def respond(message, history, llm_provider, model_name, groq_key="", gemini_key=
         # Convert Gradio history to LangChain messages
         messages = [SystemMessage(content="You are a helpful and friendly assistant.")]
         
-        for user_msg, bot_msg in history:
-            if user_msg:
-                messages.append(HumanMessage(content=user_msg))
-            if bot_msg:
-                messages.append(AIMessage(content=bot_msg))
+        # Handle new Gradio messages format (list of dicts)
+        for msg in history:
+            if msg['role'] == 'user':
+                messages.append(HumanMessage(content=msg['content']))
+            elif msg['role'] == 'assistant':
+                messages.append(AIMessage(content=msg['content']))
         
         # Add current message
         messages.append(HumanMessage(content=message))
@@ -166,79 +167,96 @@ with gr.Blocks(title="LangGraph Chatbot", theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🤖 LangGraph Chatbot")
     gr.Markdown("### Powered by LangGraph and Multiple LLM Providers")
     
-    with gr.Row():
+    # Left Sidebar - Configuration
+    with gr.Sidebar(label="Configuration", open=True):
+        gr.Markdown("### ⚙️ Settings")
+        
         llm_provider = gr.Dropdown(
             choices=["Groq", "Gemini", "OpenAI", "Ollama"],
             value="Groq",
             label="LLM Provider",
-            scale=1
         )
+        
         model_dropdown = gr.Dropdown(
             choices=MODEL_OPTIONS["Groq"],
             value="openai/gpt-oss-20b",
             label="Model",
-            scale=2,
             interactive=True
         )
-    
-    # API Keys Configuration (collapsible)
-    with gr.Accordion("🔑 API Keys Configuration (Optional - Falls back to .env)", open=False):
-        gr.Markdown("""
-            **Note:** Enter your API keys here if deploying to Hugging Face Spaces or if you haven't set them in your `.env` file.
-            If left empty, the app will use keys from your `.env` file.
-        """)
         
-        with gr.Row():
+        # API Keys Configuration (collapsible)
+        with gr.Accordion("🔑 API Keys (Optional)", open=False):
+            gr.Markdown("""
+                **Note:** Enter API keys here if deploying to Hugging Face or if not set in `.env`.
+            """)
+            
             groq_api_key = gr.Textbox(
                 label="Groq API Key",
-                placeholder="Enter your Groq API key (optional)",
-                type="password",
-                scale=1
+                placeholder="Enter your Groq API key",
+                type="password"
             )
+            
             gemini_api_key = gr.Textbox(
                 label="Gemini API Key",
-                placeholder="Enter your Gemini API key (optional)",
-                type="password",
-                scale=1
+                placeholder="Enter your Gemini API key",
+                type="password"
             )
-        
-        with gr.Row():
+            
             openai_api_key = gr.Textbox(
                 label="OpenAI API Key",
-                placeholder="Enter your OpenAI API key (optional)",
-                type="password",
-                scale=1
+                placeholder="Enter your OpenAI API key",
+                type="password"
             )
+            
             ollama_base_url = gr.Textbox(
                 label="Ollama Base URL",
-                placeholder="http://localhost:11434 (optional)",
-                scale=1
+                placeholder="http://localhost:11434"
             )
+        
+        status_msg = gr.Textbox(
+            label="📊 Status", 
+            interactive=False, 
+            value="Select LLM provider and model, then start chatting!",
+            lines=2
+        )
+        
+        clear_btn = gr.Button("🧹 Clear Chat", variant="secondary", size="lg")
     
-    status_msg = gr.Textbox(label="Status", interactive=False, value="Select LLM provider and model, then start chatting!")
+    # Main Chat Interface (Right Side)
+    gr.Markdown("### 💬 Conversation")
     
-    chatbot = gr.Chatbot(label="Conversation", height=400, show_copy_button=True)
+    chatbot = gr.Chatbot(
+        label="", 
+        height=600, 
+        show_copy_button=True,
+        show_label=False,
+        type="messages"
+    )
 
     with gr.Row():
         msg = gr.Textbox(
-            label="Your Message",
+            label="",
             placeholder="Type your message here and press Enter...",
             scale=4,
             container=False,
+            show_label=False
         )
-        submit_btn = gr.Button("Send", variant="primary", scale=1)
-
-    clear_btn = gr.Button("Clear Chat", variant="secondary")
+        submit_btn = gr.Button("📤 Send", variant="primary", scale=1)
 
     def user_message(user_msg, history):
         """Add user message to history"""
-        return "", history + [[user_msg, None]]
+        return "", history + [{"role": "user", "content": user_msg}]
 
     def bot_message(history, llm_prov, model, groq_key, gemini_key, openai_key, ollama_url):
         """Generate bot response and update history"""
-        user_msg = history[-1][0]
+        # Get the last user message
+        user_msg = history[-1]["content"]
+        
+        # Get response (pass history excluding the last message)
         bot_msg = respond(user_msg, history[:-1], llm_prov, model, groq_key, gemini_key, openai_key, ollama_url)
-        history[-1][1] = bot_msg
+        
+        # Append bot response to history
+        history.append({"role": "assistant", "content": bot_msg})
         return history
 
     def update_status(llm_prov, model, groq_key, gemini_key, openai_key, ollama_url):
@@ -266,6 +284,31 @@ with gr.Blocks(title="LangGraph Chatbot", theme=gr.themes.Soft()) as demo:
     model_dropdown.change(
         update_status, 
         [llm_provider, model_dropdown, groq_api_key, gemini_api_key, openai_api_key, ollama_base_url], 
+        status_msg
+    )
+    
+    # Handle API key changes - re-initialize graph
+    groq_api_key.change(
+        update_status,
+        [llm_provider, model_dropdown, groq_api_key, gemini_api_key, openai_api_key, ollama_base_url],
+        status_msg
+    )
+    
+    gemini_api_key.change(
+        update_status,
+        [llm_provider, model_dropdown, groq_api_key, gemini_api_key, openai_api_key, ollama_base_url],
+        status_msg
+    )
+    
+    openai_api_key.change(
+        update_status,
+        [llm_provider, model_dropdown, groq_api_key, gemini_api_key, openai_api_key, ollama_base_url],
+        status_msg
+    )
+    
+    ollama_base_url.change(
+        update_status,
+        [llm_provider, model_dropdown, groq_api_key, gemini_api_key, openai_api_key, ollama_base_url],
         status_msg
     )
 
