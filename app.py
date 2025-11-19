@@ -60,7 +60,7 @@ def get_model_choices(provider):
     )
 
 
-def initialize_graph(llm_provider, model_name):
+def initialize_graph(llm_provider, model_name, groq_key="", gemini_key="", openai_key="", ollama_url=""):
     """Initialize the LangGraph chatbot with the selected LLM provider"""
     global graph, current_llm_provider
     
@@ -68,27 +68,45 @@ def initialize_graph(llm_provider, model_name):
         user_controls_input = {}
         
         if llm_provider == "Groq":
+            # Use UI input if provided, otherwise fall back to .env
+            api_key = groq_key.strip() if groq_key.strip() else os.getenv("GROQ_API_KEY")
+            if not api_key:
+                return "❌ Error: GROQ_API_KEY is required. Please enter it above or set it in .env file."
+            
             user_controls_input = {
-                "GROQ_API_KEY": os.getenv("GROQ_API_KEY"),
+                "GROQ_API_KEY": api_key,
                 "selected_llm": model_name or "openai/gpt-oss-20b",
             }
             llm_instance = GroqLLM(user_controls_input)
         elif llm_provider == "Gemini":
+            # Use UI input if provided, otherwise fall back to .env
+            api_key = gemini_key.strip() if gemini_key.strip() else os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                return "❌ Error: GEMINI_API_KEY is required. Please enter it above or set it in .env file."
+            
             user_controls_input = {
-                "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY"),
+                "GEMINI_API_KEY": api_key,
                 "selected_llm": model_name or "gemini-2.5-flash",
             }
             llm_instance = GeminiLLM(user_controls_input)
         elif llm_provider == "OpenAI":
+            # Use UI input if provided, otherwise fall back to .env
+            api_key = openai_key.strip() if openai_key.strip() else os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                return "❌ Error: OPENAI_API_KEY is required. Please enter it above or set it in .env file."
+            
             user_controls_input = {
-                "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+                "OPENAI_API_KEY": api_key,
                 "selected_llm": model_name or "gpt-4o-mini",
             }
             llm_instance = OpenAiLLM(user_controls_input)
         elif llm_provider == "Ollama":
+            # Use UI input if provided, otherwise fall back to .env
+            base_url = ollama_url.strip() if ollama_url.strip() else os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            
             user_controls_input = {
                 "selected_llm": model_name or "gemma3:1b",
-                "OLLAMA_BASE_URL": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+                "OLLAMA_BASE_URL": base_url,
             }
             llm_instance = OllamaLLM(user_controls_input)
         else:
@@ -105,13 +123,13 @@ def initialize_graph(llm_provider, model_name):
         return f"❌ Error initializing graph: {str(e)}"
 
 
-def respond(message, history, llm_provider, model_name):
+def respond(message, history, llm_provider, model_name, groq_key="", gemini_key="", openai_key="", ollama_url=""):
     """Generate chatbot response using LangGraph"""
     global graph, current_llm_provider
     
     # Initialize or reinitialize graph if needed
     if graph is None or current_llm_provider != llm_provider:
-        init_msg = initialize_graph(llm_provider, model_name)
+        init_msg = initialize_graph(llm_provider, model_name, groq_key, gemini_key, openai_key, ollama_url)
         if "❌" in init_msg:
             return init_msg
     
@@ -163,6 +181,40 @@ with gr.Blocks(title="LangGraph Chatbot", theme=gr.themes.Soft()) as demo:
             interactive=True
         )
     
+    # API Keys Configuration (collapsible)
+    with gr.Accordion("🔑 API Keys Configuration (Optional - Falls back to .env)", open=False):
+        gr.Markdown("""
+            **Note:** Enter your API keys here if deploying to Hugging Face Spaces or if you haven't set them in your `.env` file.
+            If left empty, the app will use keys from your `.env` file.
+        """)
+        
+        with gr.Row():
+            groq_api_key = gr.Textbox(
+                label="Groq API Key",
+                placeholder="Enter your Groq API key (optional)",
+                type="password",
+                scale=1
+            )
+            gemini_api_key = gr.Textbox(
+                label="Gemini API Key",
+                placeholder="Enter your Gemini API key (optional)",
+                type="password",
+                scale=1
+            )
+        
+        with gr.Row():
+            openai_api_key = gr.Textbox(
+                label="OpenAI API Key",
+                placeholder="Enter your OpenAI API key (optional)",
+                type="password",
+                scale=1
+            )
+            ollama_base_url = gr.Textbox(
+                label="Ollama Base URL",
+                placeholder="http://localhost:11434 (optional)",
+                scale=1
+            )
+    
     status_msg = gr.Textbox(label="Status", interactive=False, value="Select LLM provider and model, then start chatting!")
     
     chatbot = gr.Chatbot(label="Conversation", height=400, show_copy_button=True)
@@ -182,16 +234,16 @@ with gr.Blocks(title="LangGraph Chatbot", theme=gr.themes.Soft()) as demo:
         """Add user message to history"""
         return "", history + [[user_msg, None]]
 
-    def bot_message(history, llm_prov, model):
+    def bot_message(history, llm_prov, model, groq_key, gemini_key, openai_key, ollama_url):
         """Generate bot response and update history"""
         user_msg = history[-1][0]
-        bot_msg = respond(user_msg, history[:-1], llm_prov, model)
+        bot_msg = respond(user_msg, history[:-1], llm_prov, model, groq_key, gemini_key, openai_key, ollama_url)
         history[-1][1] = bot_msg
         return history
 
-    def update_status(llm_prov, model):
+    def update_status(llm_prov, model, groq_key, gemini_key, openai_key, ollama_url):
         """Update status when LLM provider changes"""
-        return initialize_graph(llm_prov, model)
+        return initialize_graph(llm_prov, model, groq_key, gemini_key, openai_key, ollama_url)
     
     def update_model_dropdown(provider):
         """Update model dropdown when provider changes"""
@@ -206,19 +258,23 @@ with gr.Blocks(title="LangGraph Chatbot", theme=gr.themes.Soft()) as demo:
         model_dropdown
     ).then(
         update_status, 
-        [llm_provider, model_dropdown], 
+        [llm_provider, model_dropdown, groq_api_key, gemini_api_key, openai_api_key, ollama_base_url], 
         status_msg
     )
     
     # Handle model change - update status
-    model_dropdown.change(update_status, [llm_provider, model_dropdown], status_msg)
+    model_dropdown.change(
+        update_status, 
+        [llm_provider, model_dropdown, groq_api_key, gemini_api_key, openai_api_key, ollama_base_url], 
+        status_msg
+    )
 
     # Handle message submission
     msg.submit(user_message, [msg, chatbot], [msg, chatbot]).then(
-        bot_message, [chatbot, llm_provider, model_dropdown], chatbot
+        bot_message, [chatbot, llm_provider, model_dropdown, groq_api_key, gemini_api_key, openai_api_key, ollama_base_url], chatbot
     )
     submit_btn.click(user_message, [msg, chatbot], [msg, chatbot]).then(
-        bot_message, [chatbot, llm_provider, model_dropdown], chatbot
+        bot_message, [chatbot, llm_provider, model_dropdown, groq_api_key, gemini_api_key, openai_api_key, ollama_base_url], chatbot
     )
 
     # Clear chat history
