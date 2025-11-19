@@ -1,6 +1,6 @@
 ---
 title: Gradio Chat
-emoji: �
+emoji: 💬
 colorFrom: purple
 colorTo: pink
 sdk: gradio
