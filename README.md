@@ -60,7 +60,7 @@ A powerful, multi-provider AI chatbot application built with **LangGraph** and *
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Gradio-Chat.git
+git clone https://github.com/sshibinthomass/Gradio-Chat.git
 cd Gradio-Chat
 ```
 
@@ -184,7 +184,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 🔗 Links
 
 - **Hugging Face Space**: [View Demo](https://huggingface.co/spaces/sshibinthomass/Gradio-Chat)
-- **GitHub Repository**: [Source Code](https://github.com/YOUR_USERNAME/Gradio-Chat)
+- **GitHub Repository**: [Source Code](https://github.com/sshibinthomass/Gradio-Chat)
 
 ## 📧 Contact
 
