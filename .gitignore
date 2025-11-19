@@ -2,3 +2,15 @@
 uv.lock
 .venv
 pyproject.toml
+.env
+
+# Python cache files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
